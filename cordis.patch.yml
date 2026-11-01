@@ -1,0 +1,9 @@
+- insert:
+    - id: dsh-story-continuity
+      name: dsh-story-continuity
+      disabled: true
+      config:
+        dataRoot: /REPLACE_WITH_HOST_PRIVATE_ABSOLUTE_PATH/story-continuity
+        bindings: []
+        maxChars: 6000
+        maxRecords: 24

@@ -1,0 +1,40 @@
+{
+  "name": "dsh-story-continuity",
+  "version": "0.1.0-experimental.1",
+  "type": "module",
+  "description": "Experimental evidence-linked novel continuity; not yet validated in ElecKoi live roleplay.",
+  "exports": {
+    ".": "./index.mjs",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "*.mjs",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "DEVICE-PROBE-01.md"
+  ],
+  "main": "./index.mjs",
+  "packageManager": "pnpm@11.28.9",
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.1-rc.3 <0.2.2"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3 <0.2.2",
+    "@deepseek-ai/schemastery": "^3.18.5"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test *.test.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GolfMilk1029/Dsh-story-continuity.git"
+  }
+}
