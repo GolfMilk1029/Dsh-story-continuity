@@ -6,6 +6,11 @@ import {activeRecords,recall,POLICY} from './core.mjs';
 import {resolveElecKoiBinding} from './eleckoi-binding.mjs';
 import {ExtractionController,timelineRevision} from './extraction-controller.mjs';
 import {createLoggedExtractor} from './logged-extractor.mjs';
+export function extractionModelSelection(agent){
+ const selected={...(agent.options??{}),...(agent.session.requestHeader?.()?.config??{})};
+ if(!selected.provider||!selected.model)throw Error('No resolved RP provider/model available');
+ return selected;
+}
 export {Config};export const name='dsh-story-continuity';
 export const inject=['systemPrompt','tools','agents'];
 export function apply(ctx,config){
@@ -13,7 +18,6 @@ export function apply(ctx,config){
  const files=root=>{if(!stores.has(root))stores.set(root,new FileStore(root));return stores.get(root)};
  const logged=createLoggedExtractor({agents:ctx.agents,createUserMessage,SessionId,
   setup:(scope)=>{
-   // Both the auxiliary agent and plugin owner retain the registrations.
    const tools=ctx.effect(()=>scope.tools.restrict({allow:[]}));
    const prompt=ctx.effect(()=>scope.systemPrompt.section({name:'story-extractor',order:900,text:'Extract evidence-linked continuity only. Return a JSON array. Do not roleplay. Do not call tools.'}));
    scope.effect(()=>()=>Promise.all([tools(),prompt()]));
@@ -44,13 +48,12 @@ export function apply(ctx,config){
   }
   return next();
  });
- // Resolve public product identity before the RP turn closes; no lifecycle internals.
  ctx.on('agent/turn-stopping',async({agent,signal})=>{
   const c=snapshot(config);if(!c.enabled||!c.automaticExtraction)return;
   if(String(agent.session.id).startsWith('story-extract-'))return;
   const b=await resolveElecKoiBinding(ctx.get('eleckoiConversationsApi'),c.conversationId,signal);
   if(b.sessionId!==String(agent.session.id))return;
-  binding={...b,conversationId:c.conversationId,dataRoot:c.dataRoot,modelSelection:{...agent.options}};
+  binding={...b,conversationId:c.conversationId,dataRoot:c.dataRoot,modelSelection:extractionModelSelection(agent)};
   agents.set(b.sessionId,agent);
   const abort=()=>extractor.cancel(b.storyId);signal.addEventListener('abort',abort,{once:true});
   try{await extractor.schedule(binding);}catch(error){if(signal.aborted)throw error;}
