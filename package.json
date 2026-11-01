@@ -1,11 +1,13 @@
 {
   "name": "dsh-story-continuity",
-  "version": "0.1.0-experimental.1",
+  "version": "0.1.0-experimental.2",
   "type": "module",
-  "description": "Experimental evidence-linked novel continuity; not yet validated in ElecKoi live roleplay.",
+  "description": "Experimental logged continuity extractor for explicitly selected ElecKoi chats; live product validation pending.",
+  "main": "./index.mjs",
   "exports": {
     ".": "./index.mjs",
     "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
@@ -13,17 +15,31 @@
     "icon.svg",
     "cordis.patch.yml",
     "README.md",
-    "DEVICE-PROBE-01.md"
+    "DEVICE-PROBE-02.md",
+    "locale"
   ],
-  "main": "./index.mjs",
-  "packageManager": "pnpm@11.28.9",
   "engines": {
     "node": ">=22",
     "dsh": ">=0.2.1-rc.3 <0.2.2"
   },
+  "packageManager": "pnpm@11.28.9",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GolfMilk1029/Dsh-story-continuity.git"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3 <0.2.2",
+    "@deepseek-ai/dsh-llm": ">=0.2.1-rc.3 <0.2.2",
+    "@deepseek-ai/dsh-session": ">=0.2.1-rc.3 <0.2.2",
+    "@deepseek-ai/dsh-agent": ">=0.2.1-rc.3 <0.2.2",
+    "@deepseek-ai/dsh-system-prompt": ">=0.2.1-rc.3 <0.2.2",
     "@deepseek-ai/schemastery": "^3.18.5"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-agent-loop": ">=0.2.1-rc.3 <0.2.2",
+    "@deepseek-ai/dsh-session-projection": ">=0.2.1-rc.3 <0.2.2",
+    "@deepseek-ai/dsh-session-persistence-jsonl": ">=0.2.1-rc.3 <0.2.2"
   },
   "dsh": {
     "bundle": {
@@ -31,10 +47,7 @@
     }
   },
   "scripts": {
-    "test": "node --test *.test.mjs"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/GolfMilk1029/Dsh-story-continuity.git"
+    "test": "node --test *.test.mjs",
+    "test:memory": "STORY_TEST_MEMORY_ONLY=1 node --test real-loop.test.mjs"
   }
 }

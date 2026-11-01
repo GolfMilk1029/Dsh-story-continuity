@@ -1,42 +1,64 @@
-import Schema from '@deepseek-ai/schemastery';
-import { defineTool } from '@deepseek-ai/dsh-tools';
-import { FileStore, timelineOf } from './store.mjs';
-import { activeRecords, project, recall, POLICY } from './core.mjs';
-export const name='dsh-story-continuity';
-export const inject=['systemPrompt','tools'];
-export const Config=Schema.object({
-  dataRoot:Schema.string().required(),
-  bindings:Schema.array(Schema.object({sessionId:Schema.string().required(),character:Schema.string().required(),storyId:Schema.string().required()})).default([]),
-  maxChars:Schema.number().step(1).min(256).max(24000).default(6000),
-  maxRecords:Schema.number().step(1).min(1).max(100).default(24)
-});
+import {createUserMessage} from '@deepseek-ai/dsh-llm';
+import {SessionId} from '@deepseek-ai/dsh-session';
+import {Config,snapshot} from './config-next.mjs';
+import {FileStore,timelineOf} from './store.mjs';
+import {activeRecords,recall,POLICY} from './core.mjs';
+import {resolveElecKoiBinding} from './eleckoi-binding.mjs';
+import {ExtractionController,timelineRevision} from './extraction-controller.mjs';
+import {createLoggedExtractor} from './logged-extractor.mjs';
+export {Config};export const name='dsh-story-continuity';
+export const inject=['systemPrompt','tools','agents'];
 export function apply(ctx,config){
-  const files=new FileStore(config.dataRoot),bindings=new Map();
-  for(const b of config.bindings){if(bindings.has(b.sessionId))throw Error('Duplicate session binding');bindings.set(b.sessionId,b);}
-  const resolve=agent=>{
-    const b=agent&&bindings.get(String(agent.session.id));
-    if(!b)throw Error('This session is not explicitly bound to a story/character');
-    return {b,timeline:timelineOf(agent.session.deriveMessages())};
-  };
-  ctx.systemPrompt.context({name:'story-continuity',order:850,required:true,interpolate:false,text:({agent})=>{
-    if(!agent||!bindings.has(String(agent.session.id)))return '';
-    const {b,timeline}=resolve(agent),records=activeRecords(files.read(b.storyId),timeline);
-    return POLICY+'\n来源版本：'+(timeline.at(-1)?.token??'empty')+'\n角色：'+JSON.stringify(b.character)+'\n'+recall(records,{character:b.character,query:timeline.at(-1)?.text??'',maxChars:config.maxChars,maxRecords:config.maxRecords})+
-      '\n如需更新连续性，先用 story_inspect 查看稳定来源编号；只对已经完成的正文调用 story_commit，逐项提供原文证据、明确的 knownBy。不能为了填账改变正文或代替用户决定。无事实变更时不要提交。工具输出不属于剧情。';
+ let binding;const stores=new Map(),agents=new Map();
+ const files=root=>{if(!stores.has(root))stores.set(root,new FileStore(root));return stores.get(root)};
+ const logged=createLoggedExtractor({agents:ctx.agents,createUserMessage,SessionId,
+  setup:(scope)=>{
+   // Both the auxiliary agent and plugin owner retain the registrations.
+   const tools=ctx.effect(()=>scope.tools.restrict({allow:[]}));
+   const prompt=ctx.effect(()=>scope.systemPrompt.section({name:'story-extractor',order:900,text:'Extract evidence-linked continuity only. Return a JSON array. Do not roleplay. Do not call tools.'}));
+   scope.effect(()=>()=>Promise.all([tools(),prompt()]));
   }});
-  const register=(toolName,description,parameters,execute)=>ctx.tools.register(defineTool({name:toolName,description,parameters,
-    output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
-    execute:(args,exec)=>{exec.signal?.throwIfAborted();return JSON.stringify(execute(args,resolve(exec.agent)));}}));
-  register('story_inspect','查看当前有效正文稳定编号、状态和事件。仅适用于显式绑定的角色会话。',{},(_args,{b,timeline})=>({
-    storyId:b.storyId,character:b.character,
-    sources:timeline.slice(-4).map(m=>({id:m.id,role:m.role,text:m.text.slice(0,2000)})),
-    records:JSON.parse(recall(activeRecords(files.read(b.storyId),timeline),{character:b.character,maxChars:config.maxChars,maxRecords:config.maxRecords}))
-  }));
-  register('story_commit','提交已完成正文的带证据记录。recordsJson 是数组，字段 id,kind,key,text,sourceId,evidence,origin,certainty,knownBy；state 可带 value；knowledge 必须 character,mode,acquiredBy；plan/promise/conflict/thread 必须 status。证据必须逐字出自活跃正文。失败原子回滚。',
-    {recordsJson:{type:'string',required:true}},({recordsJson},{b,timeline})=>{
-      if(recordsJson.length>100000)throw Error('Proposal too large');
-      const r=files.submit(b.storyId,timeline,JSON.parse(recordsJson));
-      return {saved:!r.duplicate,duplicate:r.duplicate,activeCount:activeRecords(r.store,timeline).length};
-    });
-  // Read/export/correct/delete are provided by the offline management CLI, not model tools.
+ const extractor=new ExtractionController({
+  readTimeline:b=>timelineOf(agents.get(b.sessionId).session.deriveMessages()),
+  runLogged:input=>logged({...input,maxTokens:snapshot(config).extractionMaxTokens,maxInputChars:snapshot(config).extractionMaxInputChars,
+   existingRecords:JSON.parse(recall(activeRecords(files(input.binding.dataRoot).read(input.binding.storyId),input.timeline),{character:input.binding.character,maxChars:12000,maxRecords:100}))}),
+  submit:(b,revision,records)=>{
+   const current=snapshot(config);
+   if(!current.enabled||!current.automaticExtraction||current.conversationId!==b.conversationId||current.dataRoot!==b.dataRoot)throw Error('Configuration changed during extraction');
+   const timeline=timelineOf(agents.get(b.sessionId).session.deriveMessages());
+   if(timelineRevision(timeline)!==revision)throw Error('Timeline changed before commit');
+   return files(b.dataRoot).submit(b.storyId,timeline,records);
+  },onError:error=>ctx.logger.warn('Continuity extraction failed; no transaction committed: %s',error.message)
+ });
+ ctx.effect(()=>()=>extractor.dispose());
+ ctx.on('loader/volatile-update',()=>{binding=undefined});
+ ctx.on('agent/disposed',({agent})=>{agents.delete(String(agent.session.id))});
+ ctx.on('agent/pre-step',async({agent,signal},next)=>{
+  const c=snapshot(config);
+  if(c.enabled&&!String(agent.session.id).startsWith('story-extract-')){
+   const b=await resolveElecKoiBinding(ctx.get('eleckoiConversationsApi'),c.conversationId,signal);
+   if(b.sessionId===String(agent.session.id)){
+    binding={...b,conversationId:c.conversationId,dataRoot:c.dataRoot,modelSelection:{...agent.options}};
+    agents.set(b.sessionId,agent);
+   }
+  }
+  return next();
+ });
+ // Resolve public product identity before the RP turn closes; no lifecycle internals.
+ ctx.on('agent/turn-stopping',async({agent,signal})=>{
+  const c=snapshot(config);if(!c.enabled||!c.automaticExtraction)return;
+  if(String(agent.session.id).startsWith('story-extract-'))return;
+  const b=await resolveElecKoiBinding(ctx.get('eleckoiConversationsApi'),c.conversationId,signal);
+  if(b.sessionId!==String(agent.session.id))return;
+  binding={...b,conversationId:c.conversationId,dataRoot:c.dataRoot,modelSelection:{...agent.options}};
+  agents.set(b.sessionId,agent);
+  const abort=()=>extractor.cancel(b.storyId);signal.addEventListener('abort',abort,{once:true});
+  try{await extractor.schedule(binding);}catch(error){if(signal.aborted)throw error;}
+  finally{signal.removeEventListener('abort',abort);}
+ });
+ ctx.systemPrompt.context({name:'story-continuity',order:850,required:true,interpolate:false,text:({agent})=>{
+  const c=snapshot(config);if(!c.enabled||!binding||binding.conversationId!==c.conversationId||String(agent?.session.id)!==binding.sessionId)return '';
+  const timeline=timelineOf(agent.session.deriveMessages());
+  return POLICY+'\n来源版本：'+timelineRevision(timeline)+'\n'+recall(activeRecords(files(c.dataRoot).read(binding.storyId),timeline),{character:binding.character,query:timeline.at(-1)?.text??'',maxChars:c.maxChars,maxRecords:c.maxRecords});
+ }});
 }
