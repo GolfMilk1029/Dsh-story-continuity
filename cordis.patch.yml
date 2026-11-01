@@ -1,4 +1,5 @@
-- id: dsh-story-continuity
-  name: dsh-story-continuity
-  disabled: true
-  config: {}
+- insert:
+    - id: dsh-story-continuity
+      name: dsh-story-continuity
+      disabled: true
+      config: {}
