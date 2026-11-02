@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {createLoggedExtractor} from './logged-extractor.mjs';
+import {createLoggedExtractor,extractionPrompt} from './logged-extractor.mjs';
 const input=()=>({binding:{character:'Synthetic',modelSelection:{provider:'fake',model:'fake'}},timeline:[],revision:'rev',signal:new AbortController().signal});
 function fixture(text='[]'){
  let disposed=0,sent,options;
@@ -18,6 +18,19 @@ test('invalid model output still disposes auxiliary agent',async()=>{
 test('oversized source budget rejects before creating a host agent',async()=>{
  const f=fixture();const i=input();i.maxInputChars=10;
  await assert.rejects(f.run(i),/exceeds budget/);assert.equal(f.options,undefined);
+});
+test('record count is bounded by output budget',()=>{
+ assert.match(extractionPrompt(input()),/最多3条/);
+ assert.match(extractionPrompt({...input(),maxTokens:600}),/最多1条/);
+ assert.match(extractionPrompt({...input(),maxTokens:16000}),/最多8条/);
+});
+test('runtime output budget also controls the logged prompt',async()=>{
+ const f=fixture();await f.run({...input(),maxTokens:1200});
+ assert.equal(f.options.agentOptions.maxTokens,1200);
+ assert.match(f.sent.content[0].text,/最多2条/);
+});
+test('truncated JSON fails closed and disposes agent',async()=>{
+ const f=fixture('[{"id":"partial"');await assert.rejects(f.run(input()),SyntaxError);assert.equal(f.disposed,1);
 });
 test('missing model is rejected before creation',async()=>{
  const f=fixture();const i=input();delete i.binding.modelSelection;

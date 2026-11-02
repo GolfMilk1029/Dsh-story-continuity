@@ -35,7 +35,10 @@ test('rc.5 real loop: automatic logged extraction commits and next RP request se
   }
   ctx.llm.registerAdapter(['synthetic'],new Adapter());
   await ctx.plugin(Plugin,{enabled:true,automaticExtraction:true,conversationId:row.id,dataRoot:join(root,'ledger')});
-  handle=await ctx.agents.create({sessionId:SessionId(row.runtimeSessionId),agentOptions:{provider:'synthetic',model:'synthetic'}});
+  handle=await ctx.agents.create({sessionId:SessionId(row.runtimeSessionId),agentOptions:{},setup(agentCtx,agent){
+    const dispose=agentCtx.on('agent/request',async(_payload,next)=>({...await next(),provider:'synthetic',model:'synthetic'}));
+    ctx.effect(()=>dispose);
+   }});
   handle.agent.followup(createUserMessage({content:[{type:'text',text:'Borrow this umbrella.'}],source:{kind:'user'}}));await handle.agent.whenIdle();
   const records=activeRecords(new FileStore(join(root,'ledger')).read('eleckoi:'+row.id),timelineOf(handle.agent.session.deriveMessages()));
   assert.equal(records.length,1);assert.equal(requests.length,2);

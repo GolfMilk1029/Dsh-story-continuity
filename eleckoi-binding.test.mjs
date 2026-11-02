@@ -4,7 +4,7 @@ const row={id:'conversation-test',runtimeSessionId:'runtime-test',metadata:{char
 test('public catalog maps conversation ID to distinct runtime identity',async()=>{
  const control=new AbortController();
  const api={list:async signal=>{assert.equal(signal,control.signal);return [row]}};
- assert.deepEqual(await resolve(api,row.id,control.signal),{sessionId:'runtime-test',character:'Test',characterId:'character-test',storyId:'eleckoi:conversation-test'});
+ assert.deepEqual(await resolve(api,row.id,control.signal),{sessionId:'runtime-test',character:'Test',characterId:'character-test',productId:'conversation-test',storyId:'eleckoi:conversation-test'});
  await assert.rejects(resolve(api,row.runtimeSessionId,control.signal),/missing/);
 });
 test('catalog failures and ambiguous identity fail closed',async()=>{

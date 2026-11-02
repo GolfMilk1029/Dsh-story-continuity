@@ -18,5 +18,5 @@ export async function resolveElecKoiBinding(api, conversationId, signal) {
     throw Error('Incomplete ElecKoi runtime identity');
   }
   return {sessionId: row.runtimeSessionId, character: row.metadata.characterName,
-    characterId: row.metadata.characterId, storyId: `eleckoi:${row.id}`};
+    characterId: row.metadata.characterId, productId: row.id, storyId: `eleckoi:${row.id}`};
 }

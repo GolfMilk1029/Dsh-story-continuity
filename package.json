@@ -1,8 +1,8 @@
 {
   "name": "dsh-story-continuity",
-  "version": "0.1.0-experimental.4",
+  "version": "0.1.0-experimental.5",
   "type": "module",
-  "description": "Experimental logged continuity extractor for explicitly selected ElecKoi chats; live product validation pending.",
+  "description": "Experimental logged continuity extractor and story-time inner-state simulation for explicitly selected ElecKoi chats; live product validation pending.",
   "main": "./index.mjs",
   "exports": {
     ".": "./index.mjs",
@@ -11,10 +11,24 @@
     "./package.json": "./package.json",
     "./client": "./client.js"
   },
-  "files": ["*.mjs", "icon.svg", "cordis.patch.yml", "README.md", "DEVICE-PROBE-02.md", "locale", "client.js"],
-  "engines": {"node": ">=22", "dsh": ">=0.2.1-rc.3 <0.2.2"},
+  "files": [
+    "*.mjs",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "DEVICE-PROBE-02.md",
+    "locale",
+    "client.js"
+  ],
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.1-rc.3 <0.2.2"
+  },
   "packageManager": "pnpm@11.28.9",
-  "repository": {"type": "git", "url": "git+https://github.com/GolfMilk1029/Dsh-story-continuity.git"},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GolfMilk1029/Dsh-story-continuity.git"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3 <0.2.2",
     "@deepseek-ai/dsh-llm": ">=0.2.1-rc.3 <0.2.2",
@@ -29,6 +43,17 @@
     "@deepseek-ai/dsh-session-projection": ">=0.2.1-rc.3 <0.2.2",
     "@deepseek-ai/dsh-session-persistence-jsonl": ">=0.2.1-rc.3 <0.2.2"
   },
-  "dsh": {"bundle": {"patch": "./cordis.patch.yml"}, "client": {"platform": "web", "inject": []}},
-  "scripts": {"test": "node --test *.test.mjs", "test:memory": "STORY_TEST_MEMORY_ONLY=1 node --test real-loop.test.mjs"}
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": []
+    }
+  },
+  "scripts": {
+    "test": "node --test *.test.mjs",
+    "test:memory": "STORY_TEST_MEMORY_ONLY=1 node --test real-loop.test.mjs"
+  }
 }

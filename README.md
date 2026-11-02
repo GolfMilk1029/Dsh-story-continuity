@@ -33,3 +33,12 @@ STORY_TEST_MEMORY_ONLY=1 node --test real-loop.test.mjs
 
 ## English
 Experimental, explicitly scoped roleplay continuity using public ElecKoi conversation identity, logged auxiliary agents, evidence-linked atomic storage and logged runtime context. Dormant by default. rc.5 real-loop in-memory integration passes; durable auxiliary session logs and live ElecKoi/rc.3 behavior remain unverified. Use only an isolated test chat. Installation is not proof of activation or successful injection.
+
+## 角色状态模拟（故事时间）
+stateSimulation 开启后，每次完整 RP 回合结束（事实提取之后）再发起一次有日志的辅助代理调用，输出单个 JSON 对象，写入独立的 `.state.json`（与事实账本分开，永不伪装成已发生事实）。下一次请求注入简短摘要。
+- 时间：只认叙述里的字面证据（如“三天后”），并把该片段作为证据；设备时钟、消息间隔、真实流逝时间都不推进故事时间。无证据时 elapsedMinutes 必须为 0。
+- 人设：只读当前聊天设定库中“启用 + 始终注入 + 静态纯文本”的条目；读不到或超预算就跳过本次模拟并记录警告，不套用通用人设。
+- 失效：快照绑定当次完整消息前缀与角色；编辑、删除、重生成使快照作废。人设变动只作提示，不作废证据。
+- 条件用 reviewWhen（何时复查）描述，不用绝对时间戳；礼赠、承诺、约定只是意向，不算已执行。
+- 字段白名单校验：出现时间戳、时钟或未知字段即整份拒绝。
+已知限制：未在 rc.3 真机闭环验证；额外一次模型调用增加延迟与费用。
