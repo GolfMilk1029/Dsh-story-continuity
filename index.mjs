@@ -1,3 +1,29 @@
+import fs from 'node:fs';
+import path from 'node:path';
+export function bindingFailureStage(error){
+ return ({'ElecKoi public Conversations API unavailable':'binding-service-unavailable','Invalid ElecKoi conversation catalog':'binding-catalog-invalid','Conversation binding is missing or ambiguous':'binding-missing-or-ambiguous','Incomplete ElecKoi runtime identity':'binding-identity-incomplete'})[error?.message]??'binding-unavailable';
+}
+export function createDiagnostic(config,io=fs){
+ const report={owner:'dsh-story-continuity-diagnostic',schema:1,sequence:0,counts:{}};
+ return stage=>{
+  // Only caller-owned static stage codes enter this file, never error messages or chat data.
+  if(!/^[a-z-]{1,64}$/.test(stage))return;
+  report.sequence++;report.lastStage=stage;report.counts[stage]=(report.counts[stage]??0)+1;
+  try{
+   const target=config.diagnosticPath?.get?.()??'';
+   if(!target)return;
+   if(!path.isAbsolute(target)||path.basename(target)!=='story-continuity-diagnostic.json')return;
+   let fd;
+   try{fd=io.openSync(target,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL,0o600);}
+   catch(error){
+    if(error.code!=='EEXIST')return;
+    if(!io.lstatSync(target).isFile()||JSON.parse(io.readFileSync(target,'utf8')).owner!==report.owner)return;
+    fd=io.openSync(target,fs.constants.O_WRONLY|fs.constants.O_NOFOLLOW);
+   }
+   try{io.ftruncateSync(fd,0);io.writeFileSync(fd,JSON.stringify(report,null,2)+'\n');io.fsyncSync(fd);}finally{io.closeSync(fd);}
+  }catch{/* Diagnostics must never prevent roleplay or maintenance. */}
+ };
+}
 import {createUserMessage} from '@deepseek-ai/dsh-llm';
 import {SessionId} from '@deepseek-ai/dsh-session';
 import {Config,snapshot} from './config-next.mjs';
@@ -21,6 +47,7 @@ export const inject=['systemPrompt','tools','agents'];
 // Auxiliary agents are ordinary logged sessions: they must never bind themselves.
 export const isAuxiliary=sessionId=>typeof sessionId==='string'&&(sessionId.startsWith('story-extract-')||sessionId.startsWith('story-state-'));
 export function apply(ctx,config){
+ const diagnose=createDiagnostic(config);diagnose('plugin-ready');
  let binding;const stores=new Map(),agents=new Map(),stateStores=new Map();
  const files=root=>{if(!stores.has(root))stores.set(root,new FileStore(root));return stores.get(root)};
  const stateFiles=root=>{if(!stateStores.has(root))stateStores.set(root,new StateStore(root));return stateStores.get(root)};
@@ -46,8 +73,8 @@ export function apply(ctx,config){
    if(!current.enabled||!current.automaticExtraction||current.conversationId!==b.conversationId||current.dataRoot!==b.dataRoot)throw Error('Configuration changed during extraction');
    const timeline=timelineOf(agents.get(b.sessionId).session.deriveMessages());
    if(timelineRevision(timeline)!==revision)throw Error('Timeline changed before commit');
-   return files(b.dataRoot).submit(b.storyId,timeline,records);
-  },onError:error=>ctx.logger.warn('Continuity extraction failed; no transaction committed: %s',error.message)
+   const result=files(b.dataRoot).submit(b.storyId,timeline,records);diagnose('extraction-committed');return result;
+  },onError:error=>{diagnose('extraction-failed');ctx.logger.warn('Continuity extraction failed; no transaction committed: %s',error.message);}
  });
  const states=new StateController({
   readTimeline:b=>timelineOf(agents.get(b.sessionId).session.deriveMessages()),
@@ -65,19 +92,20 @@ export function apply(ctx,config){
    const timeline=timelineOf(agents.get(b.sessionId).session.deriveMessages());
    if(timelineRevision(timeline)!==revision)throw Error('Timeline changed before state commit');
    const simulation=validateSimulation(proposal,{timeline});
-   return stateFiles(b.dataRoot).commit(b.storyId,timeline,b.character,simulation,{personaDigest:b.persona?.digest??null});
-  },onError:error=>ctx.logger.warn('Story state maintenance failed; no snapshot committed: %s',error.message)
+   const result=stateFiles(b.dataRoot).commit(b.storyId,timeline,b.character,simulation,{personaDigest:b.persona?.digest??null});diagnose('state-committed');return result;
+  },onError:error=>{diagnose('state-failed');ctx.logger.warn('Story state maintenance failed; no snapshot committed: %s',error.message);}
  });
  ctx.effect(()=>()=>{extractor.dispose();states.dispose();});
- ctx.on('loader/volatile-update',()=>{binding=undefined});
+ ctx.on('loader/volatile-update',()=>{binding=undefined;diagnose('configuration-updated');});
  ctx.on('agent/disposed',({agent})=>{agents.delete(String(agent.session.id))});
  ctx.on('agent/pre-step',async({agent,signal},next)=>{
   const c=snapshot(config);
   if(c.enabled&&!isAuxiliary(String(agent.session.id))){
    let b;
    try{b=await resolveElecKoiBinding(ctx.get('eleckoiConversationsApi'),c.conversationId,signal);}
-   catch(error){binding=undefined;ctx.logger.warn('Story continuity skipped; binding unavailable: %s',error.message);return next();}
+   catch(error){diagnose(bindingFailureStage(error));binding=undefined;ctx.logger.warn('Story continuity skipped; binding unavailable: %s',error.message);return next();}
    if(b.sessionId===String(agent.session.id)){
+     diagnose('binding-matched');
     binding={...b,conversationId:c.conversationId,dataRoot:c.dataRoot,modelSelection:{...agent.options}};
     agents.set(b.sessionId,agent);
    }
@@ -90,21 +118,23 @@ export function apply(ctx,config){
   if(isAuxiliary(String(agent.session.id)))return;
   let b;
   try{b=await resolveElecKoiBinding(ctx.get('eleckoiConversationsApi'),c.conversationId,signal);}
-  catch(error){binding=undefined;ctx.logger.warn('Story maintenance skipped; binding unavailable: %s',error.message);return;}
-  if(b.sessionId!==String(agent.session.id))return;
+  catch(error){diagnose(bindingFailureStage(error));binding=undefined;ctx.logger.warn('Story maintenance skipped; binding unavailable: %s',error.message);return;}
+  if(b.sessionId!==String(agent.session.id)){diagnose('runtime-session-mismatch');return;}
+   diagnose('maintenance-entered');
   binding={...b,conversationId:c.conversationId,dataRoot:c.dataRoot,modelSelection:extractionModelSelection(agent)};
   agents.set(b.sessionId,agent);
   const abort=()=>{extractor.cancel(b.storyId);states.cancel(b.storyId);};signal.addEventListener('abort',abort,{once:true});
   try{
-   if(c.automaticExtraction){try{await extractor.schedule(binding);}catch(error){if(signal.aborted)throw error;}}
+   if(c.automaticExtraction){diagnose('extraction-scheduled');try{await extractor.schedule(binding);}catch(error){diagnose('extraction-failed');if(signal.aborted)throw error;}}
    if(!snapshot(config).stateSimulation)return;
    // Persona is a precondition: without it the simulation would invent a different character.
    const persona=await readPersona(ctx.get('eleckoiConversationsApi'),binding.productId,snapshot(config).personaMaxChars);
    if(persona.status!=='ok'){
+     diagnose('persona-unavailable');
     ctx.logger.warn('Story state maintenance skipped; persona material unavailable: %s',persona.status);
     return;
    }
-   try{await states.schedule({...binding,persona});}catch(error){if(signal.aborted)throw error;}
+   diagnose('state-scheduled');try{await states.schedule({...binding,persona});}catch(error){diagnose('state-failed');if(signal.aborted)throw error;}
   }finally{signal.removeEventListener('abort',abort);}
  });
  ctx.systemPrompt.context({name:'story-continuity',order:850,required:true,interpolate:false,text:({agent})=>{
@@ -115,7 +145,8 @@ export function apply(ctx,config){
   try{
    const snapshotState=activeSnapshot(stateFiles(c.dataRoot).read(binding.storyId),timeline,binding.character);
    const rendered=snapshotState?renderState(snapshotState,{maxChars:c.stateInjectMaxChars}):'';
-   return rendered?base+'\n\n'+rendered:base;
+   diagnose(rendered?'state-context-rendered':'ledger-context-rendered');
+    return rendered?base+'\n\n'+rendered:base;
   }catch(error){ctx.logger.warn('Story state unavailable for this request: %s',error.message);return base;}
  }});
 }

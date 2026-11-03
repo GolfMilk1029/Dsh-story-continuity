@@ -1,6 +1,6 @@
 window.__ModuleLoader__.load({id:'dsh-story-continuity',factory:(require)=>{
  const React=require('react'),h=React.createElement;
- const fields=[['enabled','启用连续性处理','checkbox'],['conversationId','聊天 ID 或 title:唯一标题','text'],['dataRoot','宿主私有存储绝对路径','text'],['automaticExtraction','自动提取（会产生模型费用）','checkbox'],['maxChars','注入字符上限','number'],['maxRecords','注入记录上限','number'],['extractionMaxTokens','提取输出 token 上限','number'],['extractionMaxInputChars','提取输入字符上限','number'],['stateSimulation','角色状态模拟（故事时间，额外一次调用）','checkbox'],['personaMaxChars','人设读取字符上限','number'],['stateMaxTokens','状态输出 token 上限','number'],['stateMaxInputChars','状态输入字符上限','number'],['stateInjectMaxChars','状态注入字符上限','number']];
+ const fields=[['enabled','启用连续性处理','checkbox'],['conversationId','聊天 ID 或 title:唯一标题','text'],['dataRoot','宿主私有存储绝对路径','text'],['automaticExtraction','自动提取（会产生模型费用）','checkbox'],['maxChars','注入字符上限','number'],['maxRecords','注入记录上限','number'],['extractionMaxTokens','提取输出 token 上限','number'],['extractionMaxInputChars','提取输入字符上限','number'],['stateSimulation','角色状态模拟（故事时间，额外一次调用）','checkbox'],['personaMaxChars','人设读取字符上限','number'],['stateMaxTokens','状态输出 token 上限','number'],['stateMaxInputChars','状态输入字符上限','number'],['stateInjectMaxChars','状态注入字符上限','number'],['diagnosticPath','诊断文件绝对路径（空值关闭；仅使用独立诊断文件）','text']];
  let clientContext;
  function inspectCurrentConversation(){
   try{

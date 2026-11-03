@@ -1,6 +1,7 @@
 import Schema from '@deepseek-ai/schemastery';
 // Separate until integration tests cover both rc.3 and rc.5 live references.
 export const Config=Schema.object({
+  diagnosticPath:Schema.string().default('').description('可选诊断 JSON 绝对文件路径；空值不写；仅阶段与计数，不包含正文或错误原文').volatile(),
   enabled:Schema.boolean().default(false).description('启用连续性处理；初始关闭，不发起模型调用').volatile(),
   conversationId:Schema.string().default('').description('聊天 ID，或 title:唯一聊天标题；仅精确匹配，重名拒绝；空值不处理任何聊天').volatile(),
   dataRoot:Schema.string().default('').description('宿主可写的绝对私有目录；空值不创建文件').volatile(),
