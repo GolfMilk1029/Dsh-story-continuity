@@ -1,6 +1,6 @@
 {
   "name": "dsh-story-continuity",
-  "version": "0.1.0-experimental.5",
+  "version": "0.1.0-experimental.6",
   "type": "module",
   "description": "Experimental logged continuity extractor and story-time inner-state simulation for explicitly selected ElecKoi chats; live product validation pending.",
   "main": "./index.mjs",
@@ -12,7 +12,20 @@
     "./client": "./client.js"
   },
   "files": [
-    "*.mjs",
+    "index.mjs",
+    "config-next.mjs",
+    "core.mjs",
+    "store.mjs",
+    "eleckoi-binding.mjs",
+    "extraction-controller.mjs",
+    "logged-extractor.mjs",
+    "persona.mjs",
+    "state-sim.mjs",
+    "state-store.mjs",
+    "state-controller.mjs",
+    "logged-simulator.mjs",
+    "manage.mjs",
+    "model-selection.mjs",
     "icon.svg",
     "cordis.patch.yml",
     "README.md",
@@ -21,7 +34,7 @@
     "client.js"
   ],
   "engines": {
-    "node": ">=22",
+    "node": "^22.19.0 || >=24.0.0",
     "dsh": ">=0.2.1-rc.3 <0.2.2"
   },
   "packageManager": "pnpm@11.28.9",

@@ -74,7 +74,9 @@ export function apply(ctx,config){
  ctx.on('agent/pre-step',async({agent,signal},next)=>{
   const c=snapshot(config);
   if(c.enabled&&!isAuxiliary(String(agent.session.id))){
-   const b=await resolveElecKoiBinding(ctx.get('eleckoiConversationsApi'),c.conversationId,signal);
+   let b;
+   try{b=await resolveElecKoiBinding(ctx.get('eleckoiConversationsApi'),c.conversationId,signal);}
+   catch(error){binding=undefined;ctx.logger.warn('Story continuity skipped; binding unavailable: %s',error.message);return next();}
    if(b.sessionId===String(agent.session.id)){
     binding={...b,conversationId:c.conversationId,dataRoot:c.dataRoot,modelSelection:{...agent.options}};
     agents.set(b.sessionId,agent);
@@ -86,7 +88,9 @@ export function apply(ctx,config){
  ctx.on('agent/turn-stopping',async({agent,signal})=>{
   const c=snapshot(config);if(!c.enabled||(!c.automaticExtraction&&!c.stateSimulation))return;
   if(isAuxiliary(String(agent.session.id)))return;
-  const b=await resolveElecKoiBinding(ctx.get('eleckoiConversationsApi'),c.conversationId,signal);
+  let b;
+  try{b=await resolveElecKoiBinding(ctx.get('eleckoiConversationsApi'),c.conversationId,signal);}
+  catch(error){binding=undefined;ctx.logger.warn('Story maintenance skipped; binding unavailable: %s',error.message);return;}
   if(b.sessionId!==String(agent.session.id))return;
   binding={...b,conversationId:c.conversationId,dataRoot:c.dataRoot,modelSelection:extractionModelSelection(agent)};
   agents.set(b.sessionId,agent);
