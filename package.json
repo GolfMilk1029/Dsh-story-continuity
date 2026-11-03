@@ -1,6 +1,6 @@
 {
   "name": "dsh-story-continuity",
-  "version": "0.1.0-experimental.6",
+  "version": "0.1.0-experimental.7",
   "type": "module",
   "description": "Experimental logged continuity extractor and story-time inner-state simulation for explicitly selected ElecKoi chats; live product validation pending.",
   "main": "./index.mjs",
