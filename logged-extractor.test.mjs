@@ -1,5 +1,11 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createLoggedExtractor,extractionPrompt} from './logged-extractor.mjs';
+test('host identity and reserved IDs remain distinct from narrative aliases',()=>{
+ const p=extractionPrompt({binding:{character:'Test role'},timeline:[],revision:'r',existingRecords:[],reservedRecordIds:['existing-id']});
+ assert.match(p,/不得用正文姓名替代/);assert.match(p,/只有证据支持当前角色知情/);
+ const j=JSON.parse(p.slice(p.indexOf('\n{')+1));assert.equal(j.character,'Test role');assert.deepEqual(j.reservedRecordIds,['existing-id']);assert.deepEqual(j.existingRecords,[]);
+ assert.throws(()=>extractionPrompt({binding:{character:'Test role'},timeline:[],revision:'r',reservedRecordIds:['x'.repeat(500)],maxInputChars:100}),/budget/);
+});
 const input=()=>({binding:{character:'Synthetic',modelSelection:{provider:'fake',model:'fake'}},timeline:[],revision:'rev',signal:new AbortController().signal});
 function fixture(text='[]'){
  let disposed=0,sent,options;

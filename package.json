@@ -1,8 +1,9 @@
 {
   "name": "dsh-story-continuity",
-  "version": "0.1.0-experimental.8",
+  "version": "0.1.0-experimental.9",
   "type": "module",
   "description": "Experimental logged continuity extractor and story-time inner-state simulation for explicitly selected ElecKoi chats; live product validation pending.",
+  "license": "MIT",
   "main": "./index.mjs",
   "exports": {
     ".": "./index.mjs",
@@ -24,12 +25,13 @@
     "state-store.mjs",
     "state-controller.mjs",
     "logged-simulator.mjs",
+    "memory.mjs",
     "manage.mjs",
     "model-selection.mjs",
     "icon.svg",
     "cordis.patch.yml",
     "README.md",
-    "DEVICE-PROBE-02.md",
+    "LICENSE",
     "locale",
     "client.js"
   ],

@@ -2,7 +2,7 @@ import {FileStore} from './store.mjs';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {activeRecords,project} from './core.mjs';
 const [cmd,root,scope,arg,confirm]=process.argv.slice(2);
-if(!root||!scope)throw Error('Usage: node bin/manage.mjs inspect|export|suppress|clear|project /absolute/dataRoot storyId [argument] [--confirm]');
+if(!root||!scope)throw Error('Usage: node manage.mjs inspect|export|suppress|clear|project <absolute dataRoot> <storyId> [argument] [--confirm]');
 const files=new FileStore(root);
 if(cmd==='inspect')console.log(JSON.stringify(files.read(scope),null,2));
 else if(cmd==='export'){

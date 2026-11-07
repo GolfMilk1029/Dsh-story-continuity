@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,readFileSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {emptyStore,commit,activeRecords,project,recall} from './core.mjs';
+import {emptyStore,commit,activeRecords,committedIds,project,recall} from './core.mjs';
 import {FileStore,digest,timelineOf} from './store.mjs';
 const msg=(id,text)=>({id,text,role:'assistant',token:digest(id+text)});
 const base=(id,key,text,sourceId,extra={})=>({id,kind:'state',key,text,sourceId,evidence:text,origin:'narrative',certainty:'certain',knownBy:['A'],...extra});
@@ -63,4 +63,22 @@ test('timeline ignores reasoning, tool-only assistant, plugin context',()=>{
  {id:'2',role:'user',source:{kind:'plugin:runtime-context'},content:[{type:'text',text:'not plot'}]},
  {id:'3',role:'assistant',toolCalls:[{}],content:[{type:'text',text:'tool plan'}]},
  {id:'4',role:'assistant',content:[{type:'reasoning',text:'secret'},{type:'text',text:'reply'}]}]);assert.deepEqual(t.map(x=>x.text),['hello','reply']);
+});
+test('identity survives the branch that introduced it',()=>{
+ // Every batch is bound to the full observed timeline, so trimming one message
+ // retires both earlier batches. Their ids must still stay reserved.
+ const t=[msg('1','钥匙交给A'),msg('2','A用钥匙开门')];
+ let s=save(emptyStore(),t,[base('a','key','钥匙交给A','1')]);
+ s=save(s,t,[base('b','door','A用钥匙开门','2')]);
+ const retired=[t[0]];
+ assert.equal(activeRecords(s,t).length,2);
+ assert.equal(activeRecords(s,retired).length,0);
+ assert.deepEqual([...committedIds(s)].sort(),['a','b']);
+ // `a` and `b` are no longer active, yet neither identity may be recycled.
+ assert.throws(()=>save(s,retired,[base('b','other','钥匙交给A','1')]),/Record id already committed/);
+ assert.throws(()=>save(s,retired,[base('a','other','钥匙交给A','1')]),/Record id already committed/);
+ // A brand-new id on the surviving branch is still accepted.
+ const fresh=save(s,retired,[base('c','other','钥匙交给A','1')]);
+ assert.equal(activeRecords(fresh,retired).length,1);
+ assert.deepEqual([...committedIds(fresh)].sort(),['a','b','c']);
 });

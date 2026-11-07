@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync, unlinkSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, isAbsolute } from 'node:path';
 import { emptyStore, validateStore, commit } from './core.mjs';
 export const digest=text=>createHash('sha256').update(text).digest('hex');
 export function timelineOf(messages){
@@ -11,14 +11,16 @@ export function timelineOf(messages){
     .map(m=>({...m,token:digest(JSON.stringify(m))}));
 }
 export class FileStore {
-  constructor(root){if(!root||!root.startsWith('/'))throw Error('Absolute dataRoot required');this.root=resolve(root);mkdirSync(this.root,{recursive:true,mode:0o700});}
+  // Platform-correct: POSIX root, Windows drive, UNC and root-relative paths are all absolute.
+  constructor(root){if(typeof root!=='string'||!root.trim()||!isAbsolute(root))throw Error('Absolute dataRoot required');this.root=resolve(root);mkdirSync(this.root,{recursive:true,mode:0o700});}
   path(scope){if(typeof scope!=='string'||!scope.trim())throw Error('Scope required');return join(this.root,digest(scope)+'.json');}
   read(scope){try{return validateStore(JSON.parse(readFileSync(this.path(scope),'utf8')));}catch(e){if(e.code==='ENOENT')return emptyStore();throw e;}}
   save(scope,state){
     validateStore(state);const path=this.path(scope),tmp=path+'.'+randomUUID()+'.tmp';
     try{
       writeFileSync(tmp,JSON.stringify(state),{mode:0o600,flag:'wx'});
-      const fd=openSync(tmp,'r');try{fsyncSync(fd);}finally{closeSync(fd);}
+      // 'r+' not 'r': Windows Denies FlushFileBuffers on a read-only handle (EPERM on fsync).
+      const fd=openSync(tmp,'r+');try{fsyncSync(fd);}finally{closeSync(fd);}
       renameSync(tmp,path);
     }catch(e){try{unlinkSync(tmp);}catch{}throw e;}
   }

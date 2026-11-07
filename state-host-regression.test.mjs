@@ -1,7 +1,15 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtempSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
 import fs from 'node:fs';
-import {apply,Config,createDiagnostic} from './index.mjs';
+import {apply,Config,createDiagnostic,extractionModelSelection} from './index.mjs';
+test('auxiliary reasoning override leaves main model configuration unchanged',()=>{
+ const agent={options:{provider:'fake',model:'fake',reasoningEffort:'high'},session:{}};
+ assert.equal(extractionModelSelection(agent,'low').reasoningEffort,'low');
+ assert.equal(agent.options.reasoningEffort,'high');
+ assert.equal(extractionModelSelection(agent,'inherit').reasoningEffort,'high');
+ assert.throws(()=>extractionModelSelection(agent,'invalid'),/Invalid auxiliary/);
+ assert.equal(Config({}).auxiliaryReasoningEffort.get(),'inherit');
+});
 test('diagnostic is opt-in, bounded metadata, and refuses unrelated files',()=>{
  const dir=mkdtempSync(join(tmpdir(),'story-diagnostic-')),target=join(dir,'story-continuity-diagnostic.json');
  createDiagnostic(Config({}))('plugin-ready');assert.equal(fs.existsSync(target),false);

@@ -3,8 +3,8 @@ export const timelineRevision=timeline=>createHash('sha256').update(JSON.stringi
 // runLogged must be a host-owned, durable/logged agent request, never raw llm.fetch.
 // This module intentionally knows no model credentials or transport.
 export class ExtractionController {
-  constructor({readTimeline,runLogged,submit,onError=()=>{}}){
-    Object.assign(this,{readTimeline,runLogged,submit,onError});
+  constructor({readTimeline,runLogged,submit,isProcessed,onError=()=>{}}){
+    Object.assign(this,{readTimeline,runLogged,submit,isProcessed,onError});
     this.running=new Map();this.completed=new Map();this.closed=false;
   }
   schedule(binding){
@@ -24,6 +24,9 @@ export class ExtractionController {
       const timeline=structuredClone(await this.readTimeline(binding,signal));
       const revision=timelineRevision(timeline);
       if(this.completed.get(binding.storyId)===revision)return {status:'unchanged'};
+      // Durable check: the ledger is the record of what was already extracted, so a
+      // restart or a fresh controller must not pay for the same turn twice.
+      if(this.isProcessed?.(binding,timeline)){this.completed.set(binding.storyId,revision);return {status:'unchanged'};}
       if(!timeline.length||timeline.at(-1).role!=='assistant')return {status:'not-complete'};
       const proposal=await this.runLogged({binding,timeline,revision,signal});
       signal.throwIfAborted();

@@ -19,7 +19,10 @@ export function createLoggedSimulator({agents,createUserMessage,SessionId,setup,
    handle.agent.followup(createUserMessage({content:[{type:'text',text:prompt}],source:{kind:'user'}}));
    await handle.agent.whenIdle();signal.throwIfAborted();
    const replies=handle.agent.session.deriveMessages().filter(m=>m.role==='assistant'&&!m.toolCalls?.length);
-   if(replies.length!==1)throw Error('State simulator must produce exactly one final assistant message');
+   // Distinguish "the request never produced an answer" from "the model answered twice":
+   // the first is a model/transport failure and must not be reported as a JSON problem.
+   if(replies.length===0)throw Error('Auxiliary state request returned no final message; transport or model failure');
+   if(replies.length>1)throw Error('State simulator must produce exactly one final assistant message');
    const text=(replies[0].content??[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
    if(text.length>60000)throw Error('State output too large');
    const value=JSON.parse(text);

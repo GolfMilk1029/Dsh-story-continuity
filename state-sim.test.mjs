@@ -8,6 +8,35 @@ test('story time must be quoted literally from the active narrative',()=>{
  assert.throws(()=>validateSimulation({storyTime:{elapsedMinutes:10,evidence:'三天后',sourceId:'gone'}},{timeline}),/not active/);
  assert.throws(()=>validateSimulation({storyTime:{elapsedMinutes:10}},{timeline}),/needs source/);
 });
+test('a production answer must be a complete snapshot, never a partial patch',()=>{
+ // A quiet partial answer would otherwise erase a fever and open conditions.
+ const partial={storyTime:{elapsedMinutes:0}};
+ assert.throws(()=>validateSimulation(partial,{timeline,requireComplete:true}),/Incomplete state snapshot/);
+ const full={storyTime:{elapsedMinutes:0,label:null},affect:{description:null,intensity:null},
+  vitality:{level:null,description:null},bodily:{hunger:null,health:'低烧',sleepiness:null},
+  attention:{busy:null},concerns:[],conditions:[]};
+ const ok=validateSimulation(full,{timeline,requireComplete:true});
+ assert.equal(ok.bodily.health,'低烧');
+ // Nested omissions are rejected too, not just the top level.
+ const shallow={...full,vitality:{level:null}};
+ assert.throws(()=>validateSimulation(shallow,{timeline,requireComplete:true}),/vitality\.description/);
+ // Legacy/offline callers keep the permissive behaviour explicitly.
+ assert.doesNotThrow(()=>validateSimulation(partial,{timeline}));
+});
+test('a persona digest change is carried as a hint, not as an invalidation',()=>{
+ const prompt=statePrompt({character:'琉璃',persona:{digest:'new',text:'护林人'},timeline,revision:'r',
+  previous:{storyTime:{minutes:120},elapsedMinutes:120,state:{},personaDigest:'old'}});
+ assert.match(prompt,/人设变动只作提示/);
+ const payload=JSON.parse(prompt.slice(prompt.indexOf('\n{')+1));
+ assert.equal(payload.personaDigest,'new');
+ assert.equal(payload.previous.personaDigest,'old');
+});
+test('input character metadata is forbidden in state output',()=>{
+ assert.throws(()=>validateSimulation({character:'琉璃',storyTime:{elapsedMinutes:0}},{timeline}),/Unsupported state field: character/);
+ const prompt=statePrompt({character:'琉璃',persona:{text:'静态人设'},timeline,revision:'r'});
+ assert.match(prompt,/character 不是输出字段/);
+ assert.match(prompt,/七个字段/);
+});
 test('no wall-clock or device-time fields survive validation',()=>{
  assert.throws(()=>validateSimulation({conditions:[{kind:'mood',text:'低落',expires_at:'2026-11-03T00:00:00Z'}]},{timeline}),/Unsupported condition field/);
  assert.throws(()=>validateSimulation({updatedAt:'2026-11-03'},{timeline}),/Unsupported state field/);

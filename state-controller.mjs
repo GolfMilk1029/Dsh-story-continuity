@@ -1,8 +1,8 @@
 import {timelineRevision} from './extraction-controller.mjs';
 // Same coalescing contract as fact extraction, so one turn cannot stack model calls.
 export class StateController {
-  constructor({readTimeline,runLogged,submit,onError=()=>{}}){
-    Object.assign(this,{readTimeline,runLogged,submit,onError});
+  constructor({readTimeline,runLogged,submit,isCurrent,onError=()=>{}}){
+    Object.assign(this,{readTimeline,runLogged,submit,isCurrent,onError});
     this.running=new Map();this.completed=new Map();this.closed=false;
   }
   schedule(binding){
@@ -21,6 +21,9 @@ export class StateController {
       const timeline=structuredClone(await this.readTimeline(binding,signal));
       const revision=timelineRevision(timeline);
       if(this.completed.get(binding.storyId)===revision)return {status:'unchanged'};
+      // Durable check: an active snapshot already covering this exact timeline means the
+      // story has not advanced, so paying for another simulation call cannot add anything.
+      if(this.isCurrent?.(binding,timeline)){this.completed.set(binding.storyId,revision);return {status:'unchanged'};}
       if(!timeline.length||timeline.at(-1).role!=='assistant')return {status:'not-complete'};
       const proposal=await this.runLogged({binding,timeline,revision,signal});
       signal.throwIfAborted();

@@ -1,7 +1,12 @@
 window.__ModuleLoader__.load({id:'dsh-story-continuity',factory:(require)=>{
  const React=require('react'),h=React.createElement;
- const fields=[['enabled','启用连续性处理','checkbox'],['conversationId','聊天 ID 或 title:唯一标题','text'],['dataRoot','宿主私有存储绝对路径','text'],['automaticExtraction','自动提取（会产生模型费用）','checkbox'],['maxChars','注入字符上限','number'],['maxRecords','注入记录上限','number'],['extractionMaxTokens','提取输出 token 上限','number'],['extractionMaxInputChars','提取输入字符上限','number'],['stateSimulation','角色状态模拟（故事时间，额外一次调用）','checkbox'],['personaMaxChars','人设读取字符上限','number'],['stateMaxTokens','状态输出 token 上限','number'],['stateMaxInputChars','状态输入字符上限','number'],['stateInjectMaxChars','状态注入字符上限','number'],['diagnosticPath','诊断文件绝对路径（空值关闭；仅使用独立诊断文件）','text']];
+ const fields=[['enabled','启用连续性处理','checkbox'],['conversationId','聊天 ID 或 title:唯一标题','text'],['dataRoot','宿主私有存储绝对路径','text'],['automaticExtraction','自动提取（会产生模型费用）','checkbox'],['maxChars','注入字符上限','number'],['maxRecords','注入记录上限','number'],['auxiliaryReasoningEffort','辅助推理强度（inherit / low / medium / high；需模型支持）','text'],['extractionMaxTokens','提取总输出 token 上限（可能包含推理消耗）','number'],['extractionMaxInputChars','提取输入字符上限','number'],['stateSimulation','角色状态模拟（故事时间，额外一次调用）','checkbox'],['personaMaxChars','人设读取字符上限','number'],['stateMaxTokens','状态输出 token 上限','number'],['stateMaxInputChars','状态输入字符上限','number'],['stateInjectMaxChars','状态注入字符上限','number'],['storyMemory','角色自述记忆：日记/反思/长期目标/生活作息（不新增调用，不进事实通道）','checkbox'],['memoryInjectMaxChars','自述记忆注入字符上限','number'],['memoryMaxDiary','注入几条日记/反思','number'],['memoryMaxGoals','注入几条长期目标','number'],['memoryMaxRoutines','注入几条生活作息','number'],['diagnosticPath','诊断文件绝对路径（空值关闭；仅使用独立诊断文件）','text']];
  let clientContext;
+ // Mirrors the host's node:path isAbsolute gate: POSIX root, Windows drive, UNC, root-relative.
+ function isAbsolutePath(value){
+  const text=String(value??'').trim();
+  return text.startsWith('/')||/^[A-Za-z]:[\\/]/.test(text)||text.startsWith('\\\\');
+ }
  function inspectCurrentConversation(){
   try{
    const service=clientContext?.get?.('eleckoiConversations');
@@ -19,7 +24,7 @@ window.__ModuleLoader__.load({id:'dsh-story-continuity',factory:(require)=>{
   if(!state||state.status!=='ready')return h('p',null,'配置尚未就绪；请先打开组件开关。');
   const values=draft??state.value??{};
   async function save(){
-   if(values.enabled&&(!String(values.conversationId??'').trim()||!String(values.dataRoot??'').startsWith('/'))){setNotice('启用前请填写唯一聊天及私有绝对目录。');return;}
+   if(values.enabled&&(!String(values.conversationId??'').trim()||!isAbsolutePath(values.dataRoot))){setNotice('启用前请填写唯一聊天及私有绝对目录。');return;}
    setBusy(true);setNotice('');
    try{await form.mutate(fields.map(([key])=>({op:'set',path:[key],value:values[key]})),revision??state.revision);setDraft(null);setRevision(null);setNotice('保存请求已完成，请核对当前值。');}catch(error){setNotice(String(error?.message??error));}finally{setBusy(false);}
   }
